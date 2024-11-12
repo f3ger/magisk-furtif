@@ -1,3 +1,20 @@
 # This file will be read by resetprop
 # Example: Change dpi
 # ro.sf.lcd_density=320
+# TODO: make this respect the user selection when installing
+
+# Enable wifi adb by default
+persist.adb.tcp.port=5555
+service.adb.tcp.port=5555
+
+# Disable adb auth and attempt to make it persist
+ro.adb.secure=0
+persist.adb.notify=1
+persist.sys.usb.config=adb
+persist.service.adb.enable=1
+
+# Disable builtin root to pass snet
+persist.service.root=0
+
+# Change default language
+persist.sys.locale=en-US
