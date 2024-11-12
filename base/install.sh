@@ -136,6 +136,13 @@ on_install() {
   # Extend/change the logic to whatever you want
   ui_print "- Extracting module files"
   unzip -o "$ZIPFILE" 'system/*' -d $MODPATH >&2
+      if [ -d /system/xbin ]; then
+        BIN=/system/xbin
+        mv $MODPATH/system/bin "$MODPATH$BIN"
+    else
+        BIN=/system/bin
+    fi
+    ui_print "- Setting BIN: $BIN."
 }
 
 # Only some special files require specific permissions
