@@ -1,0 +1,11 @@
+{
+    "discordWebhookUrl": "https://discord.com/api/webhooks/...",
+    "checkInterval": 300,
+    "startApkTools": {
+        "tap1": {"x": 650, "y": 470, "sleep": 25},
+        "swipe": {"startX": 895, "startY": 539, "endX": 895, "endY": 119, "duration": 300, "sleep": 5},
+        "tap2": {"x": 860, "y": 600, "sleep": 20},
+        "tap3": {"x": 640, "y": 240, "sleep": 10},
+        "tap4": {"x": 640, "y": 360, "sleep": 15}
+    }
+}
