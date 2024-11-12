@@ -4,34 +4,56 @@
 # and module is placed.
 # This will make sure your module will still work
 # if Magisk change its mount point in the future
+#!/system/bin/sh
 MODDIR=${0%/*}
 
-# This script will be executed in late_start service mode
-
-# wait for boot to complete
 while [ "$(getprop sys.boot_completed)" != 1 ]; do
     sleep 1
 done
-
-# ensure boot has actually completed
 sleep 5
 
-# force resolution before start apk to 1280x960
-# wm size 1280x960
+check_device_status() {
+    PidPOGO=$(pidof com.nianticlabs.pokemongo)
+    PidAPK=$(pidof com.github.furtif.furtifformaps)
+    if [[ -z "$PidPOGO" || -z "$PidAPK" ]]; then
+        return 1  
+    fi
+    return 0  
+}
 
-# start apk tools
-am start -n com.github.furtif.furtifformaps/com.github.furtif.furtifformaps.MainActivity
+close_apps_if_offline_and_start_it() {
+    am force-stop com.github.furtif.furtifformaps
+    am force-stop com.nianticlabs.pokemongo
+    sleep 5
+    start_apk_tools
+}
 
-# ensure apk load has actually completed
+start_apk_tools() {
+    am start -n com.github.furtif.furtifformaps/com.github.furtif.furtifformaps.MainActivity
+    sleep 10
+    input tap 650 470
+    sleep 25
+    input swipe 895 539 895 119 300
+    sleep 10
+    input tap 860 600
+    sleep 20
+    input tap 640 240
+    sleep 10
+    input tap 640 360
+    sleep 15
+}
+
 sleep 10
 
-# set you good coords here ...
-input tap 650 470
-sleep 20
-input swipe 895 539 895 119 300
-sleep 10
-input tap 860 600
-sleep 20
-input tap 640 240
-sleep 10
-input tap 640 360
+start_apk_tools
+
+sleep 300
+
+while true; do
+    if ! check_device_status; then
+        close_apps_if_offline_and_start_it
+        sleep 5
+        continue
+    fi
+    sleep 300
+done
