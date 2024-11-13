@@ -4,20 +4,12 @@
 
 Runs apk-tools on boot with magisk. 
 
-For more information on frida, see https://www.frida.re/docs/android/.
-
 ## Instructions
 
-Flash the zip for your platform using TWRP or Magisk Manager.
+1. edit the config file (magisk-furtif.json)
+ - Device Name
+ - edit tab cords (In the example config the values ​​of a TX9s are stored)
 
-You can either grab the zip file from the [release page](https://github.com/Furtif/magisk-furtif/releases) or build it yourself.
+2. push config file (magisk-furtif.json) to /sdcard/Download
 
-In order to build it:
-
-```
-git clone https://github.com/Furtif/magisk-furtif
-cd magisk-furtif
-python3 build.py
-```
-
-Zip fils will be generated in builds.
+3. Flash the zip for your platform using TWRP or Magisk Manager.
