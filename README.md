@@ -12,7 +12,7 @@ Runs apk-tools on boot with magisk.
 
 2. push config file (magisk-furtif.json) to /sdcard/Download
 
-   adb push magisk-furtif.json /sdcard/Download
+   ```adb push magisk-furtif.json /sdcard/Download```
 
 4. Flash the zip for your platform using TWRP or Magisk Manager.
 
