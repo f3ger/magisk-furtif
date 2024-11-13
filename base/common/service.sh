@@ -46,6 +46,13 @@ while [ "$(getprop sys.boot_completed)" != 1 ]; do
 done
 sleep 5
 
+# add common packages to denylist
+magisk --sqlite "REPLACE INTO denylist (package_name,process) VALUES('com.android.vending','com.android.vending');"
+magisk --sqlite "DELETE FROM denylist (package_name='com.google.android.gms');"
+magisk --sqlite "DELETE FROM denylist (package_name='com.google.android.gms.setup');"
+#magisk --sqlite "REPLACE INTO denylist (package_name,process) VALUES('com.google.android.gsf','com.google.android.gsf');"
+magisk --sqlite "REPLACE INTO denylist (package_name,process) VALUES('com.nianticlabs.pokemongo','com.nianticlabs.pokemongo');"
+  
 # Function to send a message to Discord
 send_discord_message() {
     message=$1
