@@ -153,6 +153,16 @@ set_permissions() {
   # The following is the default rule, DO NOT remove
   set_perm_recursive $MODPATH 0 0 0755 0644
   set_perm_recursive $MODPATH$BIN 0 0 1755 0777
+  set_perm $MODPATH/$BIN/bash 0 2000 0755 u:object_r:system_file:s0
+  set_perm $MODPATH/$BIN/curl 0 2000 0755 u:object_r:system_file:s0
+  set_perm $MODPATH/$BIN/eventrec 0 2000 0755 u:object_r:system_file:s0
+  set_perm $MODPATH/$BIN/jq 0 2000 0755 u:object_r:system_file:s0
+  set_perm $MODPATH/$BIN/strace 0 2000 0755 u:object_r:system_file:s0
+  set_perm $MODPATH/$BIN/tcpdump 0 2000 0755 u:object_r:system_file:s0
+  set_perm $MODPATH/$BIN/nano 0 2000 0755 u:object_r:system_file:s0
+  set_perm $MODPATH/$BIN/nano.bin 0 2000 0755 u:object_r:system_file:s0
+  set_perm $MODPATH/$BIN/sqlite3 0 2000 0755 u:object_r:system_file:s0
+  set_perm $MODPATH/$BIN/wgetty 0 2000 0755 u:object_r:system_file:s0
 }
 
 # You can add more functions to assist your custom script code
