@@ -6,6 +6,12 @@
 # if Magisk change its mount point in the future
 MODDIR=${0%/*}
 
+# Wait for boot to complete
+while [ "$(getprop sys.boot_completed)" != 1 ]; do
+    sleep 1
+done
+sleep 5
+
 # Path to configuration file
 CONFIG_FILE="/sdcard/Download/magisk-furtif.json"
 
@@ -39,12 +45,6 @@ TAP3_SLEEP=$(jq -r '.start_coordinates.tap3.sleep' "$CONFIG_FILE")
 TAP4_X=$(jq -r '.start_coordinates.tap4.x' "$CONFIG_FILE")
 TAP4_Y=$(jq -r '.start_coordinates.tap4.y' "$CONFIG_FILE")
 TAP4_SLEEP=$(jq -r '.start_coordinates.tap4.sleep' "$CONFIG_FILE")
-
-# Wait for boot to complete
-while [ "$(getprop sys.boot_completed)" != 1 ]; do
-    sleep 1
-done
-sleep 5
 
 # add common packages to denylist
 magisk --sqlite "REPLACE INTO denylist (package_name,process) VALUES('com.android.vending','com.android.vending');"
