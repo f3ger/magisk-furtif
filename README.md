@@ -8,6 +8,7 @@ Runs apk-tools on boot with magisk.
 
 1. edit the config file (magisk-furtif.json)
  - Device Name
+ - Discord Webhook URL
  - edit tab cords (In the example config the values ​​of a TX9s are stored)
 
 2. push config file (magisk-furtif.json) to /sdcard/Download
