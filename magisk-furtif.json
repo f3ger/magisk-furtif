@@ -1,0 +1,15 @@
+{
+    "device_name": "TX9s-01",
+    "check_interval": 300,
+    "network_check_interval": 30,
+    "min_free_memory_percent": 10,
+    "discord_webhook_url": "https://discord.com/api/webhooks/...",
+    
+    "start_coordinates": {
+        "tap1": { "x": 650, "y": 470, "sleep": 10 },
+        "swipe": { "x1": 895, "y1": 539, "x2": 895, "y2": 119, "duration": 300, "sleep": 25 },
+        "tap2": { "x": 860, "y": 600, "sleep": 20 },
+        "tap3": { "x": 640, "y": 240, "sleep": 10 },
+        "tap4": { "x": 640, "y": 360, "sleep": 15 }
+    }
+}
