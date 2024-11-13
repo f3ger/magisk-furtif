@@ -11,8 +11,9 @@ Runs apk-tools on boot with magisk.
  - edit tab cords (In the example config the values ​​of a TX9s are stored)
 
 2. push config file (magisk-furtif.json) to /sdcard/Download
+   adb push magisk-furtif.json /sdcard/Download
 
-3. Flash the zip for your platform using TWRP or Magisk Manager.
+4. Flash the zip for your platform using TWRP or Magisk Manager.
 
 ## example configuration
 
