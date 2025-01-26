@@ -26,7 +26,7 @@ A robust monitoring script for Android devices running --=FurtiF™=-- Tools.
 
 ### Method 1: Magisk Manager  
 1. Download the module ZIP:  
-   `MagMagiskFurtif-2.0.zip`  
+   `MagMagiskFurtif-atv-2.0.zip`  
 2. Open **Magisk Manager** → **Modules** → **Install from storage**.  
 3. Select the ZIP and reboot.  
 
@@ -77,7 +77,7 @@ jq --version && curl --version
 ### Install the Magisk Module
 ## Method 1: Magisk Manager  
 1. Download the module ZIP:  
-   `MagMagiskFurtif-2.0.zip`  
+   `MagMagiskFurtif-atv-2.0.zip`  
 2. Open **Magisk Manager** → **Modules** → **Install from storage**.  
 3. Select the ZIP and reboot.  
 
