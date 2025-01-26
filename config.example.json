@@ -1,6 +1,5 @@
 {
     "DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/...",
-    "DEVICE_NAME": "Dummy",
     "ROTOM_URL": "http://rotom.domain.com/api/status",
     "CHECK_INTERVAL": 300,
     "MEMORY_THRESHOLD": 400000,
