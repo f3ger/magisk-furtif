@@ -22,7 +22,7 @@ def create_module_prop(path, frida_release):
 name=MagiskFurtif
 version=v{0}
 versionCode={1}
-author=Furtif
+author=Furtif/f3ger
 description=Runs FurtiF Tools on boot with magisk.
 support=https://github.com/Furtif/magisk-furtif/issues
 minMagisk=1530""".format(frida_release, frida_release.replace(".", ""))
