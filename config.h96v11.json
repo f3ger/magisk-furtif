@@ -1,0 +1,24 @@
+{
+    "DISCORD_WEBHOOK_URL": "https://discord.com/api/webhooks/...",
+    "DEVICE_NAME": "Dummy",
+    "ROTOM_URL": "http://rotom.domain.com/api/status",
+    "CHECK_INTERVAL": 300,
+    "MEMORY_THRESHOLD": 400000,
+    "ROTOM_AUTH_USER": "",
+    "ROTOM_AUTH_PASS": "",
+        "SLEEP_APP_START": 25,
+  "SWIPE_COORDINATES": {
+    "start_x": 1340,
+    "start_y": 890,
+    "end_x": 1340,
+    "end_y": 295,
+    "duration": 300,
+    "sleep": 5
+  },
+  "TAP_COORDINATES": [
+    { "x": 945, "y": 665, "sleep": 25 },
+    { "x": 1295, "y": 970, "sleep": 10 },
+    { "x": 945, "y": 325, "sleep": 2 },
+    { "x": 945, "y": 570, "sleep": 1 }
+  ]
+}
