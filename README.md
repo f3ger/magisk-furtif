@@ -13,15 +13,12 @@ A robust monitoring script for Android devices running --=FurtiF™=-- Tools.
     - ✅ **TX9s**  
     - ✅ **X96mini**
     - ✅ **A95XF1** 
-    - ✅ **H96max V11 (Android 11)**  
+    - ✅ **H96max V11 RK3318 (Android 11)**  
     These devices already include the tools via the [ClawOfDead PoGoROM](https://github.com/ClawOfDead/ATVRoms/releases) and [Andis PoGoROM](https://github.com/andi2022/PoGoRom/releases) repository.  
 
-  - **For other devices**: Install via Termux (see below).  
-
-### 2. **Android Permissions**  
-The module automatically grants:  
-- `WRITE_SECURE_SETTINGS`  
-- Storage access for `config.json`.  
+  - **For other devices**: Install via Termux (see below).
+    - ✅ **H96max v13 RK3528 (Android 13)**
+    - ✅ **Rasberry Pi 4/5 (Android 13)**
 
 ---
 
