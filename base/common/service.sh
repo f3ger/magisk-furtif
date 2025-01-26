@@ -373,7 +373,7 @@ start_apk_tools() {
 # Dynamische Felder erstellen
     fields=$($JQ -n \
         --arg name "Versions:" \
-        --arg value "--=FurtiF™=-- Tools: **v$mitm_version**\nPokémon GO: **v$pogo_version**\nPlay Integrity Fix: **$module_version**" \
+        --arg value "Mapworld: **v$mitm_version**\nPokémon GO: **v$pogo_version**\nPlay Integrity Fix: **$module_version**" \
         '[{name: $name, value: ($value | gsub("\\\\n"; "\n"))}]' \
 )
 
