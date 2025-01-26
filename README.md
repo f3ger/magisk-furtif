@@ -65,7 +65,7 @@ jq --version && curl --version
 ```
 ## ⚙️ Configuration
 1. **Edit `config.json`**:  
-   - Update `DISCORD_WEBHOOK_URL`, `TAP_COORDINATES`, etc.  
+   - Update `DISCORD_WEBHOOK_URL`, `ROTOM_URL`, etc.  
    - Use `config.example.json` as a template.  
 
 2. **Place `config.json`**:  
