@@ -1,184 +1,430 @@
 #!/system/bin/sh
-# DO NOT assume where your module will be located.
-# ALWAYS use $MODDIR if you need to know where this script
-# and module are placed. This ensures your module will still work
-# even if Magisk changes its mount point in the future.
 MODDIR=${0%/*}
 
-# Global variables
-# Set the path to the Termux binary directory. This path may vary depending on the Android version.
-# For Android 14 (or specific versions), Termux binaries are typically located at this path.
-# For ATV devices like H96, set this to /system/xbin.
-# For others, it might exist in /vendor/bin or /system/bin, or use Termux from the Play Store.
-BINDIR="/data/data/com.termux/files/usr/bin"
-
-# Define the device name used for logging and notifications.
-DEVICENAME="Pixel5"
-
-# Set the Discord Webhook URL to send notifications about device status.
-# Replace this URL with your actual Discord webhook URL to send messages to a Discord channel.
-DISCORD_WEBHOOK_URL="YOUR_WEBHOOK_URL_HERE"
-
-# Option to control whether to send Discord messages or not.
-# If true, messages will be sent to the Discord webhook; otherwise, they will be skipped.
-USEDISCORD=false # Set to true to enable Discord notifications.
-
-# URL for Rotom API to check the device's status.
-ROTOMAPI_URL="http://YOUR_ROTOM_URL_HERE/api/status"
-
-# Option to enable checking the Rotom API status for the device.
-USEROTOM=false # Set to true to enable Rotom API checks.
-
-# Define the credentials if Rotom API uses authentication.
-ROTOMAPI_USER="USER_HERE"
-ROTOMAPI_PASSWORD="USER_PASSWORD_HERE"
-ROTOMAPI_USE_AUTH=false # Set to true if Rotom API requires authentication.
-
-# The script is designed to run in the late_start service mode, ensuring it runs after most services are started.
-
-# Wait for the system boot process to complete by checking the "sys.boot_completed" system property.
-# The system property will be "1" once the boot process is fully completed.
-# while [ "$(getprop sys.boot_completed)" != 1 ]; do
-until [ "$(getprop sys.boot_completed)" = "1" ]; do
-	sleep 1 # Sleep for 1 second before checking again.
+while [ "$(getprop sys.boot_completed)" != 1 ]; do
+    sleep 1
 done
 
-# Ensure boot has fully completed after checking the boot status by adding a short delay.
-sleep 5
-
-# Function to check the device's status using the Rotom API.
-rotom_device_status() {
-	# Only perform the status check if USEROTOM is enabled (true).
-	if [ "$USEROTOM" = true ]; then
-		# Fetch the response from the Rotom API using authentication if needed.
-		if [ "$ROTOMAPI_USE_AUTH" = true ]; then
-			response=$("$BINDIR"/curl -s -u "$ROTOMAPI_USER:$ROTOMAPI_PASSWORD" "$ROTOMAPI_URL")
-		else
-			response=$("$BINDIR"/curl -s "$ROTOMAPI_URL")
-		fi
-
-		# Extract device information based on the device name from the API response.
-		device_info=$(echo "$response" | "$BINDIR"/jq -r --arg name "$DEVICENAME" '.devices[] | select((.origin | split(" • ")[1]) == $name)')
-
-		# Check if device_info is empty or null
-		if [ -z "$device_info" ] || [ "$device_info" == "null" ]; then
-			# Device info not found or null, send an alert to Discord
-			send_discord_message "🔴 Alert: Device **$DEVICENAME** has no info or was not found in the Rotom API..."
-			# Uncomment the following line to enable automatic reboot if needed.
-			# reboot
-			# Attempt to fix the issue by restarting applications
-			close_apps_if_offline_and_start_it
-			# Wait for 5 seconds before checking the status again to ensure stability
-			sleep 5
-			# Exit the function, but do not quit the script
-			return # Exits the current function and allows the script to continue
-		fi
-
-		# Extract the status (isAlive) and memory information (memFree) from the API response.
-		is_alive=$(echo "$device_info" | "$BINDIR"/jq -r '.isAlive')
-		mem_free=$(echo "$device_info" | "$BINDIR"/jq -r '.lastMemory.memFree')
-
-		# If the device is alive, send a status message to Discord.
-		if [ "$is_alive" = "true" ]; then
-			send_discord_message "🟢 Status: --=FurtiF™=-- Tools Device **$DEVICENAME** isAlive: **$is_alive** free memory: **$mem_free**"
-		fi
-
-		# If the device is not alive or has low memory (less than 200MB), send an alert and attempt to fix the issue.
-		if [ "$is_alive" = "false" ] || [ "$mem_free" -lt 200000 ]; then
-			send_discord_message "🔴 Alert: Device **$DEVICENAME** is offline or low on memory. Fix issue now..."
-			# Uncomment to enable automatic reboot or use close_apps_if_offline_and_start_it to restart all apps.
-			# reboot
-			close_apps_if_offline_and_start_it # Attempt to fix by restarting applications.
-			sleep 5                            # Wait for 5 seconds before checking the status again to ensure stability.
-		fi
-	fi
-}
-
-# Function to send messages to Discord using the webhook URL.
-send_discord_message() {
-	# Check if sending Discord messages is enabled (USEDISCORD=true).
-	if [ "$USEDISCORD" = true ]; then
-		# Send a POST request to the Discord Webhook with the message content.
-		# If the POST request fails, output a failure message to the terminal.
-		"$BINDIR"/curl -X POST -H "Content-Type: application/json" \
-			-d "{\"content\": \"$1\"}" "$DISCORD_WEBHOOK_URL" || ui_print "Failed to send Discord message"
-	fi
-}
-
-# Function to check if specific processes (Pokémon GO and FurtiF™ Tools) are running on the device.
-check_device_status() {
-	# Use pidof to check if the processes for Pokémon GO and FurtiF™ Tools are running.
-	PidPOGO=$(pidof com.nianticlabs.pokemongo)
-	PidAPK=$(pidof com.github.furtif.furtifformaps)
-
-	# If either process is not running (empty PID), the device is considered offline.
-	if [[ -z "$PidPOGO" || -z "$PidAPK" ]]; then
-		return 1 # Device is offline if either process is missing.
-	fi
-	return 0 # Device is online if both processes are running.
-}
-
-# Function to force-close apps and restart FurtiF™ Tools if the device is offline.
-close_apps_if_offline_and_start_it() {
-	# Force-stop FurtiF™ Tools and Pokémon GO if they are running (device is offline).
-	am force-stop com.github.furtif.furtifformaps
-	am force-stop com.nianticlabs.pokemongo
-
-	# Notify Discord that the device is offline and apps were closed.
-	send_discord_message "🔴 Alert: Device **$DEVICENAME** is offline! Closed --=FurtiF™=-- Tools and Pokémon GO."
-
-	# Wait for 5 seconds before restarting the APK tools.
-	sleep 5
-
-	# Start the APK tools (FurtiF™ Tools).
-	start_apk_tools
-}
-
-# Function to start the FurtiF™ Tools APK and perform necessary actions.
-start_apk_tools() {
-	# Start the FurtiF™ Tools APK and launch its main activity.
-	am start -n com.github.furtif.furtifformaps/com.github.furtif.furtifformaps.MainActivity
-
-	# Wait for the APK to load completely.
-	sleep 5
-
-	# Simulate user interactions (taps, swipes, etc.) to perform actions in the app.
-	# Coordinates are based on the device's screen and app layout and may need adjustments.
-
-	input tap 545 1350 # Simulate a tap to log in.
-	sleep 10           # Wait for the login process to complete.
-
-	input swipe 560 1800 560 450 # Simulate a swipe gesture (possibly to accept or navigate).
-	sleep 3                      # Wait for 3 seconds after swipe.
-
-	input tap 545 1980 # Tap to authorize or confirm an action.
-	sleep 10           # Wait for 10 seconds to process the authorization.
-
-	input tap 545 710 # Tap to recheck service status.
-	sleep 1           # Wait for 1 second.
-
-	input tap 545 1205 # Tap to start the service or trigger some function.
-	sleep 1            # Wait for 1 second after starting the service.
-
-	# Send a status update to Discord indicating that the tools have been started and actions have been performed.
-	send_discord_message "🟢 Status: --=FurtiF™=-- Tools Device **$DEVICENAME** started and actions performed."
-}
-
-# Introduce a short delay to allow the system to stabilize after boot.
-sleep 15
-
-# Main loop to continuously check the device status and restart the APK if necessary.
+# Warte zusätzlich auf Netzwerkverbindung und kritische Dienste
+MAX_WAIT=30  # Maximale Wartezeit in Sekunden (als Fallback)
+start_time=$(date +%s)
 while true; do
-	# If the device is offline (Pokémon GO or FurtiF™ Tools are not running), close apps and restart the tools.
-	if ! check_device_status; then
-		close_apps_if_offline_and_start_it # Close apps and restart the tools if offline.
-		sleep 5                            # Wait for 5 seconds before checking the status again.
-		continue                           # Skip the current iteration and start checking again.
-	fi
+    # Prüfe, ob Netzwerkverbindung besteht
+    if ip route get 1.1.1.1 &> /dev/null && \
+       ping -c1 1.1.1.1 &> /dev/null && \
+       [ "$(getprop service.bootanim.exit)" = "1" ]; then
+        break
+    fi
 
-	# Wait for 5 minutes (300 seconds) before checking the status again.
-	sleep 300
+    # Timeout nach MAX_WAIT Sekunden
+    if [ $(($(date +%s) - start_time)) -ge $MAX_WAIT ]; then
+        log_event "Timeout: Network/services not ready after $MAX_WAIT seconds." "WARN"
+        break
+    fi
+    sleep 2
+done
 
-	# Perform Rotom API check if USEROTOM is enabled after the 5-minute wait.
-	rotom_device_status
+local_ip="$(ip route get 1.1.1.1 | awk '{print $7}')"
+
+# JSON-Konfigurationsdatei
+CONFIG_FILE="/sdcard/Download/config.json"
+LOG_FILE="/sdcard/Download/device_monitor.log"
+
+get_info() {
+pogo_version="$(dumpsys package com.nianticlabs.pokemongo | awk -F "=" '/versionName/ {print $2}')"
+mitm_version="$(dumpsys package com.github.furtif.furtifformaps | awk -F "=" '/versionName/ {print $2}')"
+temperature="$(cat /sys/class/thermal/thermal_zone0/temp | awk '{print substr($0, 1, length($0)-3)}')"
+module_version=$(awk -F '=' '/^version=/ {print $2}' "/data/adb/modules/playintegrityfix/module.prop")
+}
+
+trim_logs() {
+    MAX_LINES=1000  # Maximale Anzahl der Logzeilen
+
+    if [ -f "$LOG_FILE" ]; then
+        log_lines=$(wc -l < "$LOG_FILE")
+        if [ "$log_lines" -ge "$MAX_LINES" ]; then
+            tail -n "$MAX_LINES" "$LOG_FILE" > "${LOG_FILE}.tmp"  # Behalten Sie nur die letzten 1000 Zeilen
+            mv "${LOG_FILE}.tmp" "$LOG_FILE"
+            log_event "Log file trimmed to the last $MAX_LINES lines." "INFO"
+        fi
+    fi
+}
+
+# Funktion: Ereignisse protokollieren
+log_event() {
+    log_level=$2
+    trim_logs
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [$log_level] - $1" >> "$LOG_FILE"
+}
+
+# Funktion: Tool-Verfügbarkeit prüfen
+check_tool() {
+    if ! command -v "$1" &> /dev/null; then
+        if [ -d "/data/data/com.termux/files/usr/bin" ]; then
+            log_event "$1 not found. Using Termux path." "WARN"
+            echo "/data/data/com.termux/files/usr/bin/$1"
+        else
+            log_event "$1 not found and Termux is unavailable." "ERROR"
+            exit 1
+        fi
+    else
+        echo "$(command -v $1)"
+    fi
+}
+
+JQ=$(check_tool jq)
+CURL=$(check_tool curl)
+
+# Funktion: RotomDeviceName auslesen
+get_device_name() {
+    su -c "cat /data/data/com.github.furtif.furtifformaps/files/config.json" | $JQ -r ".RotomDeviceName"
+}
+
+# Funktion: JSON auslesen
+get_json_value() {
+    key=$1
+    $JQ -r "$key" "$CONFIG_FILE"
+}
+
+# Überprüfen, ob die JSON-Konfigurationsdatei existiert
+if [ ! -f "$CONFIG_FILE" ]; then
+    log_event "Config file not found at $CONFIG_FILE" "ERROR"
+    exit 1
+fi
+
+# Variablen aus JSON-Datei laden
+DISCORD_WEBHOOK_URL=$(get_json_value ".DISCORD_WEBHOOK_URL")
+ROTOM_URL=$(get_json_value ".ROTOM_URL")
+CHECK_INTERVAL=$(get_json_value ".CHECK_INTERVAL")
+MEMORY_THRESHOLD=$(get_json_value ".MEMORY_THRESHOLD")
+ROTOM_AUTH_USER=$(get_json_value ".ROTOM_AUTH_USER")
+ROTOM_AUTH_PASS=$(get_json_value ".ROTOM_AUTH_PASS")
+SLEEP_APP_START=$(get_json_value ".SLEEP_APP_START")
+
+# Tap-Koordinaten laden
+TAB1_X=$(get_json_value ".TAP_COORDINATES[0].x")
+TAB1_Y=$(get_json_value ".TAP_COORDINATES[0].y")
+TAB1_SLEEP=$(get_json_value ".TAP_COORDINATES[0].sleep")
+
+TAB2_X=$(get_json_value ".TAP_COORDINATES[1].x")
+TAB2_Y=$(get_json_value ".TAP_COORDINATES[1].y")
+TAB2_SLEEP=$(get_json_value ".TAP_COORDINATES[1].sleep")
+
+TAB3_X=$(get_json_value ".TAP_COORDINATES[2].x")
+TAB3_Y=$(get_json_value ".TAP_COORDINATES[2].y")
+TAB3_SLEEP=$(get_json_value ".TAP_COORDINATES[2].sleep")
+
+TAB4_X=$(get_json_value ".TAP_COORDINATES[3].x")
+TAB4_Y=$(get_json_value ".TAP_COORDINATES[3].y")
+TAB4_SLEEP=$(get_json_value ".TAP_COORDINATES[3].sleep")
+
+# Swipe-Koordinaten laden
+SWIPE_START_X=$(get_json_value ".SWIPE_COORDINATES.start_x")
+SWIPE_START_Y=$(get_json_value ".SWIPE_COORDINATES.start_y")
+SWIPE_END_X=$(get_json_value ".SWIPE_COORDINATES.end_x")
+SWIPE_END_Y=$(get_json_value ".SWIPE_COORDINATES.end_y")
+SWIPE_DURATION=$(get_json_value ".SWIPE_COORDINATES.duration")
+SWIPE_SLEEP=$(get_json_value ".SWIPE_COORDINATES.sleep")
+
+# Überprüfen, ob wichtige Variablen geladen wurden
+if [ -z "$DISCORD_WEBHOOK_URL" ] || [ -z "$ROTOM_URL" ]; then
+    log_event "Missing critical configuration values. Check your JSON file." "ERROR"
+    exit 1
+fi
+
+log_event "Configuration loaded successfully." "INFO"
+
+# Dynamische Intervalle
+BASE_CHECK_INTERVAL="$CHECK_INTERVAL"  # Ursprünglicher Wert aus der Config
+CURRENT_CHECK_INTERVAL="$BASE_CHECK_INTERVAL"
+STABLE_THRESHOLD=5  # Anzahl erfolgreicher Checks, bevor Intervall erhöht wird
+stable_counter=0
+
+calculate_runtime() {
+    local end_time=$(date +%s)  # Aktueller Zeitpunkt in Sekunden
+    local elapsed_seconds=$((end_time - START_TIME))
+
+    local hours=$((elapsed_seconds / 3600))
+    local minutes=$(( (elapsed_seconds % 3600) / 60 ))
+
+    echo "${hours}h ${minutes}m"
+}
+
+# Funktion zur Generierung von Payloads
+generate_json_payload() {
+    local title="$1"
+    local description="$2"
+    local color="$3"
+    local footer="$4"
+    local fields="$5"
+
+    if [[ -z "$fields" ]]; then
+        fields="[]"
+    fi
+
+    $JQ -n \
+        --arg title "$title" \
+        --arg description "$description" \
+        --arg footer "$footer" \
+        --argjson fields "$fields" \
+        --arg color "$color" \
+        '{
+            content: "",
+            tts: false,
+            embeds: [
+                {
+                    title: $title,
+                    description: $description,
+                    color: ($color | tonumber),
+                    fields: $fields,
+                    footer: {
+                        text: $footer
+                    }
+                }
+            ],
+            components: [],
+            actions: {}
+        }'
+}
+
+# Funktion zum Senden von Nachrichten
+send_discord_message() {
+    local json_payload="$1"
+
+    # Debugging: JSON Payload anzeigen
+    #log_event "JSON Payload: $json_payload" "DEBUG"
+
+    # cURL-Anfrage senden
+    response=$($CURL -s -X POST -k \
+        -H "Content-Type: application/json" \
+        -d "$json_payload" \
+        "$DISCORD_WEBHOOK_URL")
+
+    # Debugging: Discord-Antwort loggen
+    log_event "Discord response: $response" "DEBUG"
+
+    # Optional: Fehlerbehandlung basierend auf der Antwort
+    http_code=$(echo "$response" | $JQ -r '.code // 200') # Falls kein Code vorhanden, Standard 200
+    if [[ $http_code -ne 200 ]]; then
+        log_event "Failed to send Discord message. HTTP status: $http_code" "ERROR"
+        return 1
+    fi
+}
+
+# Funktion: Gerätestatus prüfen
+check_device_status() {
+    get_info
+    runtime=$(calculate_runtime)
+
+    if [ -z "$ROTOM_URL" ]; then
+        log_event "ROTOM_URL not set. Falling back to PID-based status check." "WARN"
+        
+        # PID-Überprüfung, ob Apps laufen
+        PidPOGO=$(pidof com.nianticlabs.pokemongo)
+        PidAPK=$(pidof com.github.furtif.furtifformaps)
+
+        if [[ -z "$PidPOGO" || -z "$PidAPK" ]]; then
+            # Generiere JSON für fehlende Prozesse
+            fields=$($JQ -n --arg name "Runtime:" --arg value "$runtime" '[{name: $name, value: $value}]')
+            json_payload=$(generate_json_payload \
+                "$DEVICE_NAME" \
+                "Alert: Tools are offline. Missing processes." \
+                "16711680" \
+                "local IP: $local_ip - CPU temp: $temperature°C" \
+                "$fields"
+            )
+
+            send_discord_message "$json_payload"
+
+            log_event "Device is offline. PidPOGO=$PidPOGO, PidAPK=$PidAPK. Runtime: ${runtime}" "ERROR"
+            stop_apk_tools
+            start_apk_tools
+        else
+            log_event "Device $DEVICE_NAME is online. PidPOGO=$PidPOGO, PidAPK=$PidAPK." "INFO"
+        fi
+        return
+    fi
+
+    # Wenn ROTOM_URL gesetzt ist, prüfen wir die API-Verbindung
+    if [ -n "$ROTOM_AUTH_USER" ] && [ -n "$ROTOM_AUTH_PASS" ]; then
+        response=$($CURL -s --user "$ROTOM_AUTH_USER:$ROTOM_AUTH_PASS" --connect-timeout 5 --max-time 10 "$ROTOM_URL")
+    else
+        response=$($CURL -s --connect-timeout 5 --max-time 10 "$ROTOM_URL")
+    fi
+
+    if [ -z "$response" ]; then
+        # Generiere JSON für fehlende API-Antwort
+        json_payload=$(generate_json_payload \
+            "$DEVICE_NAME" \
+            "Warning: Could not retrieve status from API. Falling back to PID check." \
+            "16776960" \
+            "local IP: $local_ip" \
+            "[]"
+        )
+
+        send_discord_message "$json_payload"
+        log_event "Failed to retrieve status from API. Falling back to PID check. Runtime: ${runtime}" "ERROR"
+
+        # Fallback zu PID-Überprüfung
+        PidPOGO=$(pidof com.nianticlabs.pokemongo)
+        PidAPK=$(pidof com.github.furtif.furtifformaps)
+
+        if [[ -z "$PidPOGO" || -z "$PidAPK" ]]; then
+            # Generiere JSON für fehlende Prozesse
+            fields=$($JQ -n --arg name "Runtime:" --arg value "$runtime" '[{name: $name, value: $value}]')
+            json_payload=$(generate_json_payload \
+                "$DEVICE_NAME" \
+                "Alert: Tools are offline. Missing processes. ** **" \
+                "16711680" \
+                "local IP: $local_ip - CPU temp: $temperature°C" \
+                "$fields"
+            )
+
+            send_discord_message "$json_payload"
+            log_event "Device is offline. PidPOGO=$PidPOGO, PidAPK=$PidAPK. Runtime: ${runtime}" "ERROR"
+            stop_apk_tools
+            start_apk_tools
+        else
+            log_event "Device $DEVICE_NAME is online. PidPOGO=$PidPOGO, PidAPK=$PidAPK." "INFO"
+        fi
+        return
+    fi
+
+    # Überprüfen, ob das Gerät in der API gefunden wurde
+    device_info=$(echo "$response" | $JQ -r --arg name "$DEVICE_NAME" '.devices[] | select(.origin | contains($name))')
+
+    if [ -z "$device_info" ]; then
+        # Generiere JSON für nicht gefundenes Gerät
+        json_payload=$(generate_json_payload \
+            "$DEVICE_NAME" \
+            "️Warning: Device not found in API response." \
+            "16776960" \
+            "local IP: $local_ip" \
+            "[]"
+        )
+
+        send_discord_message "$json_payload"
+        log_event "Device $DEVICE_NAME not found in API response. Runtime: ${runtime}" "WARN"
+        return
+    fi
+
+    # API-Daten verarbeiten
+    is_alive=$(echo "$device_info" | $JQ -r '.isAlive')
+    mem_free=$(echo "$device_info" | $JQ -r '.lastMemory.memFree')
+
+    if [ "$is_alive" = "false" ] || [ "$mem_free" -lt "$MEMORY_THRESHOLD" ]; then
+        # Generiere JSON für Offline- oder Speichermangel-Status
+        fields=$($JQ -n --arg name "Runtime:" --arg value "$runtime" '[{name: $name, value: $value}]')
+        json_payload=$(generate_json_payload \
+            "$DEVICE_NAME" \
+            "Alert: Device is offline or has low memory. Restarting APK tools." \
+            "16711680" \
+            "local IP: $local_ip - CPU: $temperature°C" \
+            "$fields"
+        )
+
+        send_discord_message "$json_payload"
+        log_event "Device $DEVICE_NAME offline or low memory. Restarting APK tools. Runtime: ${runtime}" "ERROR"
+        stop_apk_tools
+        start_apk_tools
+		return 1
+    else
+        log_event "Device $DEVICE_NAME status OK: Runtime ${runtime} - Memory $mem_free" "INFO"
+		return 0
+    fi
+}
+
+# Funktion: Apps stoppen
+stop_apk_tools() {
+    log_event "Stopping FurtifForMaps..." "INFO"
+    am force-stop com.github.furtif.furtifformaps
+	am force-stop com.nianticlabs.pokemongo
+    sleep 5
+}
+
+# Funktion: App starten und Aktionen ausführen
+start_apk_tools() {
+    get_info
+    log_event "Starting APK tools for $DEVICE_NAME..." "INFO"
+    am force-stop com.github.furtif.furtifformaps
+    am start -n com.github.furtif.furtifformaps/com.github.furtif.furtifformaps.MainActivity
+    sleep "$SLEEP_APP_START"
+
+    # Tab1
+    input tap "$TAB1_X" "$TAB1_Y"
+    sleep "$TAB1_SLEEP"
+
+    # Swipe
+    input swipe "$SWIPE_START_X" "$SWIPE_START_Y" "$SWIPE_END_X" "$SWIPE_END_Y" "$SWIPE_DURATION"
+    sleep "$SWIPE_SLEEP"
+
+    # Tab2
+    input tap "$TAB2_X" "$TAB2_Y"
+    sleep "$TAB2_SLEEP"
+
+    # Tab3
+    input tap "$TAB3_X" "$TAB3_Y"
+    sleep "$TAB3_SLEEP"
+
+    # Tab4
+    input tap "$TAB4_X" "$TAB4_Y"
+    sleep "$TAB4_SLEEP"
+
+# Dynamische Felder erstellen
+    fields=$($JQ -n \
+        --arg name "Versions:" \
+        --arg value "--=FurtiF™=-- Tools: **v$mitm_version**\nPokémon GO: **v$pogo_version**\nPlay Integrity Fix: **$module_version**" \
+        '[{name: $name, value: ($value | gsub("\\\\n"; "\n"))}]' \
+)
+
+# Nutzlast generieren
+    json_payload=$(generate_json_payload \
+        "$DEVICE_NAME" \
+        "Status: --=FurtiF™=-- Tools and Pokémon GO successfully launched." \
+        "65280" \
+        "local IP: $local_ip" \
+        "$fields"
+)
+    send_discord_message "$json_payload"
+    log_event "FurtifForMaps started and actions performed." "INFO"
+    START_TIME=$(date +%s)
+    log_event "App start time set to $(date -d @$START_TIME '+%Y-%m-%d %H:%M:%S')." "DEBUG"
+}
+
+# Hauptausführung
+log_event "Script started." "INFO"
+sleep 30  # Zusätzliche Startverzögerung
+# RotomDeviceName aus der Datei lesen
+DEVICE_NAME=$(get_device_name)
+
+if [ -z "$DEVICE_NAME" ]; then
+    log_event "Failed to retrieve RotomDeviceName from /data/data/com.github.furtif.furtifformaps/files/config.json. Check permissions or file content." "ERROR"
+    exit 1
+fi
+
+log_event "Device name loaded: $DEVICE_NAME" "INFO"
+
+
+start_apk_tools
+
+sleep 60
+
+while true; do
+    check_device_status
+    check_result=$?  # Speichere den Rückgabewert
+
+    if [ "$check_result" -eq 0 ]; then  # Erfolg
+        stable_counter=$((stable_counter + 1))
+        if [ "$stable_counter" -ge "$STABLE_THRESHOLD" ]; then
+            CURRENT_CHECK_INTERVAL=$((BASE_CHECK_INTERVAL * 2))  # Intervall verdoppeln
+            log_event "System stable. Increasing check interval to $CURRENT_CHECK_INTERVAL seconds." "INFO"
+            stable_counter=0  # Reset Counter
+        fi
+    else  # Fehler
+        stable_counter=0
+        CURRENT_CHECK_INTERVAL="$BASE_CHECK_INTERVAL"  # Zurück zum Basisintervall
+        log_event "System unstable. Resetting check interval to $CURRENT_CHECK_INTERVAL seconds." "WARN"
+    fi
+
+    sleep "$CURRENT_CHECK_INTERVAL"
 done
