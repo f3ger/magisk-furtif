@@ -1,57 +1,91 @@
-# MagiskFurtif [![Magisk Module](https://github.com/Furtif/magisk-furtif/actions/workflows/magisk_module.yml/badge.svg)](https://github.com/Furtif/magisk-furtif/actions/workflows/magisk_module.yml)
+# Device Monitor Service for --=FurtiF™=-- Tools
 
-## Description
+A robust monitoring script for Android devices running --=FurtiF™=-- Tools.  
+**Version 2.0** | Universal Device Support
 
-Runs apk-tools on boot with magisk. 
+---
 
-For more information on frida, see https://www.frida.re/docs/android/.
+## 📋 Prerequisites
 
-## Instructions
+### 1. **Required Tools**  
+- `jq` and `curl` must be installed on the device.  
+  - **Pre-installed on PoGoROM devices** (no action needed):  
+    - ✅ **TX9s**  
+    - ✅ **X96mini**
+    - ✅ **A95XF1** 
+    - ✅ **H96max V11 (Android 11)**  
+    These devices already include the tools via the [ClawOfDead PoGoROM](https://github.com/ClawOfDead/ATVRoms/releases) and [Andis PoGoROM](https://github.com/andi2022/PoGoRom/releases) repository.  
 
-Flash the zip for your platform using TWRP or Magisk Manager.
+  - **For other devices**: Install via Termux (see below).  
 
-You can either grab the zip file from the [release page](https://github.com/Furtif/magisk-furtif/releases) or build it yourself.
+### 2. **Android Permissions**  
+The module automatically grants:  
+- `WRITE_SECURE_SETTINGS`  
+- Storage access for `config.json`.  
 
-I recommend using [Termux](https://play.google.com/store/apps/details?id=com.termux) to have the necessary dependencies for the proper functioning of the script, and to make sure that `curl` and `jq` are properly installed.
+---
 
-### Setup Instructions
-This script is designed to work with the Termux environment on Android devices. Depending on your device and Android version, you might need to modify the path to the Termux [binary directory](https://github.com/Furtif/magisk-furtif/blob/main/base/common/service.sh#L13).
+## 📥 Installation PoGoROM Devices
 
-### Termux Binary Directory Path
-The path to the Termux binary directory may vary based on your Android version or device type. Below are the typical paths for different scenarios:
+### Method 1: Magisk Manager  
+1. Download the module ZIP:  
+   `MagMagiskFurtif-2.0.zip`  
+2. Open **Magisk Manager** → **Modules** → **Install from storage**.  
+3. Select the ZIP and reboot.  
 
-### For Android 14 or specific versions:
-- Termux binaries are usually located at:
-  - /data/data/com.termux/files/usr/bin
+### Method 2: PixelFlasher (Advanced)  
+1. Load the ZIP in PixelFlasher.  
+2. Flash the module and reboot.  
 
-### For ATV devices (e.g., H96):
-- You might need to set the path to:
-  - /system/xbin
+---
 
-### For other devices:
-- The binaries could be located in:
-  - /vendor/bin or /system/bin
+## ⚙️ Configuration
 
-### Alternatively:
-- If you are using Termux from the Play Store, it can be found at:
-  - /data/data/com.termux/files/usr/bin
+1. **Edit `config.json`**:  
+   - Update `DISCORD_WEBHOOK_URL`, `TAP_COORDINATES`, etc.  
+   - Use `config.example.json` as a template.  
 
-Make sure to update the path in the script to match the correct directory for your device. This ensures that the script will work properly regardless of changes in the system's setup.
+2. **Place `config.json`**:  
+   Copy to:
+   ```
+   /sdcard/Download/
+   ````  
+---
+## 📥 Installation for Non-PoGoROM Devices
+### Step 1: Install Termux
+Download Termux from F-Droid (recommended) or the Play Store.
 
-
-### In Termux terminal type:
+### Step 2: Install jq and curl
+Open Termux and run:
 ```
-pkg install curl
-pkg install jq
+pkg update && pkg upgrade -y
+pkg install jq curl -y
+``` 
+### Step 3: Verify Installation
+Ensure the tools are accessible:
 ```
-
-### In order to build it:
-
+jq --version && curl --version
 ```
-git clone https://github.com/Furtif/magisk-furtif
-cd magisk-furtif
-edit base/common/service.sh
-python3 build.py
-```
+## ⚙️ Configuration
+1. **Edit `config.json`**:  
+   - Update `DISCORD_WEBHOOK_URL`, `TAP_COORDINATES`, etc.  
+   - Use `config.example.json` as a template.  
 
-Zip fils will be generated in builds.
+2. **Place `config.json`**:  
+   Copy to:
+   ```
+   /sdcard/Download/
+   ````  
+
+### Install the Magisk Module
+## Method 1: Magisk Manager  
+1. Download the module ZIP:  
+   `MagMagiskFurtif-2.0.zip`  
+2. Open **Magisk Manager** → **Modules** → **Install from storage**.  
+3. Select the ZIP and reboot.  
+
+## Method 2: PixelFlasher (Advanced)  
+1. Load the ZIP in PixelFlasher.  
+2. Flash the module and reboot.  
+
+---
