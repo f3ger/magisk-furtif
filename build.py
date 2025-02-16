@@ -24,7 +24,7 @@ def create_module_prop(path, frida_release):
     module_prop = """id=magiskfurtif
 name=MagiskFurtif
 version=v{0}
-versionCode={1}
+versionCode={2}
 author=Furtif
 description=Runs Apk-Tools on boot with magisk.
 support=https://github.com/Furtif/magisk-furtif/issues
