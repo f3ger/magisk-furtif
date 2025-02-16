@@ -5,15 +5,18 @@ while [ "$(getprop sys.boot_completed)" != 1 ]; do
     sleep 1
 done
 
-MAX_WAIT=30
+# Warte zusätzlich auf Netzwerkverbindung und kritische Dienste
+MAX_WAIT=30  # Maximale Wartezeit in Sekunden (als Fallback)
 start_time=$(date +%s)
 while true; do
+    # Prüfe, ob Netzwerkverbindung besteht
     if ip route get 1.1.1.1 &> /dev/null && \
        ping -c1 1.1.1.1 &> /dev/null && \
        [ "$(getprop service.bootanim.exit)" = "1" ]; then
         break
     fi
 
+    # Timeout nach MAX_WAIT Sekunden
     if [ $(($(date +%s) - start_time)) -ge $MAX_WAIT ]; then
         break
     fi
@@ -26,6 +29,7 @@ done
 
 local_ip="$(ip route get 1.1.1.1 | awk '{print $7}')"
 
+# JSON-Konfigurationsdatei
 CONFIG_FILE="/sdcard/Download/config.json"
 LOG_FILE="/sdcard/Download/device_monitor.log"
 
@@ -36,6 +40,7 @@ if [ -f "$LOG_FILE" ]; then
     }
 fi
 
+# Log-Datei neu erstellen
 touch "$LOG_FILE" || {
     echo "Failed to create log file. Exiting."
     exit 1
@@ -49,11 +54,13 @@ temperature="$(cat /sys/class/thermal/thermal_zone0/temp | awk '{print substr($0
 module_version=$(awk -F '=' '/^version=/ {print $2}' "/data/adb/modules/playintegrityfix/module.prop")
 }
 
+# Funktion: Ereignisse protokollieren
 log_event() {
     log_level=$2
     echo "$(date '+%Y-%m-%d %H:%M:%S') [$log_level] - $1" >> "$LOG_FILE"
 }
 
+# Funktion: Tool-Verfügbarkeit prüfen
 check_tool() {
     if ! command -v "$1" &> /dev/null; then
         if [ -d "/data/data/com.termux/files/usr/bin" ]; then
@@ -71,20 +78,24 @@ check_tool() {
 JQ=$(check_tool jq)
 CURL=$(check_tool curl)
 
+# Funktion: RotomDeviceName auslesen
 get_device_name() {
     su -c "cat /data/data/com.github.furtif.furtifformaps/files/config.json" | $JQ -r ".RotomDeviceName"
 }
 
+# Funktion: JSON auslesen
 get_json_value() {
     key=$1
     $JQ -r "$key" "$CONFIG_FILE"
 }
 
+# Überprüfen, ob die JSON-Konfigurationsdatei existiert
 if [ ! -f "$CONFIG_FILE" ]; then
     log_event "Config file not found at $CONFIG_FILE" "ERROR"
     exit 1
 fi
 
+# Variablen aus JSON-Datei laden
 DISCORD_WEBHOOK_URL=$(get_json_value ".DISCORD_WEBHOOK_URL")
 ROTOM_URL=$(get_json_value ".ROTOM_URL")
 CHECK_INTERVAL=$(get_json_value ".CHECK_INTERVAL")
@@ -93,6 +104,7 @@ ROTOM_AUTH_USER=$(get_json_value ".ROTOM_AUTH_USER")
 ROTOM_AUTH_PASS=$(get_json_value ".ROTOM_AUTH_PASS")
 SLEEP_APP_START=$(get_json_value ".SLEEP_APP_START")
 
+# Tap-Koordinaten laden
 TAB1_X=$(get_json_value ".TAP_COORDINATES[0].x")
 TAB1_Y=$(get_json_value ".TAP_COORDINATES[0].y")
 TAB1_SLEEP=$(get_json_value ".TAP_COORDINATES[0].sleep")
@@ -109,6 +121,7 @@ TAB4_X=$(get_json_value ".TAP_COORDINATES[3].x")
 TAB4_Y=$(get_json_value ".TAP_COORDINATES[3].y")
 TAB4_SLEEP=$(get_json_value ".TAP_COORDINATES[3].sleep")
 
+# Swipe-Koordinaten laden
 SWIPE_START_X=$(get_json_value ".SWIPE_COORDINATES.start_x")
 SWIPE_START_Y=$(get_json_value ".SWIPE_COORDINATES.start_y")
 SWIPE_END_X=$(get_json_value ".SWIPE_COORDINATES.end_x")
@@ -116,6 +129,7 @@ SWIPE_END_Y=$(get_json_value ".SWIPE_COORDINATES.end_y")
 SWIPE_DURATION=$(get_json_value ".SWIPE_COORDINATES.duration")
 SWIPE_SLEEP=$(get_json_value ".SWIPE_COORDINATES.sleep")
 
+# Überprüfen, ob wichtige Variablen geladen wurden
 if [ -z "$DISCORD_WEBHOOK_URL" ] || [ -z "$ROTOM_URL" ]; then
     log_event "Missing critical configuration values. Check your JSON file." "ERROR"
     exit 1
@@ -133,6 +147,7 @@ calculate_runtime() {
     echo "${hours}h ${minutes}m"
 }
 
+# Funktion zur Generierung von Payloads
 generate_json_payload() {
     local title="$1"
     local description="$2"
@@ -169,60 +184,58 @@ generate_json_payload() {
         }'
 }
 
+# Funktion zum Senden von Nachrichten
 send_discord_message() {
     local json_payload="$1"
 
+    # Debugging: JSON Payload anzeigen
+    #log_event "JSON Payload: $json_payload" "DEBUG"
+
+    # cURL-Anfrage senden
     response=$($CURL -s -X POST -k \
         -H "Content-Type: application/json" \
         -d "$json_payload" \
         "$DISCORD_WEBHOOK_URL")
 
-    http_code=$(echo "$response" | $JQ -r '.code // 200')
+    # Optional: Fehlerbehandlung basierend auf der Antwort
+    http_code=$(echo "$response" | $JQ -r '.code // 200') # Falls kein Code vorhanden, Standard 200
     if [[ $http_code -ne 200 ]]; then
         log_event "Failed to send Discord message. HTTP status: $http_code" "ERROR"
         return 1
     fi
 }
 
+# Funktion: Gerätestatus prüfen
 check_device_status() {
+    # Hole aktuelle Systeminformationen
     get_info
     runtime=$(calculate_runtime)
-    api_success=false
-    pid_check_success=false
 
-    check_pids() {
-        PidPOGO=$(pidof com.nianticlabs.pokemongo)
-        PidAPK=$(pidof com.github.furtif.furtifformaps)
-        if [ -n "$PidPOGO" ] && [ -n "$PidAPK" ]; then
-            echo "true"
-        else
-            echo "false"
-        fi
-    }
-
-    fetch_api_data() {
-        local curl_cmd="$CURL -s --connect-timeout 7 --max-time 10"
-        if [ -n "$ROTOM_AUTH_USER" ] && [ -n "$ROTOM_AUTH_PASS" ]; then
-            curl_cmd="$curl_cmd --user $ROTOM_AUTH_USER:$ROTOM_AUTH_PASS"
-        fi
-
-        response=$($curl_cmd "$ROTOM_URL")
-        http_code=$($curl_cmd -o /dev/null -s -w "%{http_code}" "$ROTOM_URL")
-
-        # Prüfe, ob der HTTP-Code 200 ist und die Antwort gültiges JSON enthält
-        if [ "$http_code" -ne 200 ] || ! echo "$response" | $JQ empty 2>/dev/null; then
-            log_event "API request failed. HTTP $http_code" "ERROR"
-            echo ""
-            return 1
-        fi
-        echo "$response"
-    }
-
+    # Falls eine ROTOM_URL konfiguriert ist, versuchen wir die API-Abfrage.
     if [ -n "$ROTOM_URL" ]; then
         max_retries=3
         attempt=1
         api_response=""
 
+        # Hilfsfunktion: API-Daten abrufen
+        fetch_api_data() {
+            local curl_cmd="$CURL -s --connect-timeout 7 --max-time 10"
+            if [ -n "$ROTOM_AUTH_USER" ] && [ -n "$ROTOM_AUTH_PASS" ]; then
+                curl_cmd="$curl_cmd --user $ROTOM_AUTH_USER:$ROTOM_AUTH_PASS"
+            fi
+
+            response=$($curl_cmd "$ROTOM_URL")
+            http_code=$($curl_cmd -o /dev/null -s -w "%{http_code}" "$ROTOM_URL")
+
+            if [ "$http_code" -ne 200 ] || ! echo "$response" | $JQ empty 2>/dev/null; then
+                log_event "API request failed. HTTP $http_code" "ERROR"
+                echo ""
+                return 1
+            fi
+            echo "$response"
+        }
+
+        # Versuche, die API-Daten abzurufen
         while [ $attempt -le $max_retries ]; do
             api_response=$(fetch_api_data)
             if [ -n "$api_response" ]; then
@@ -234,55 +247,87 @@ check_device_status() {
         done
 
         if [ -n "$api_response" ]; then
+            # Suche den Geräteeintrag in der API-Antwort anhand des DEVICE_NAME
             device_info=$(echo "$api_response" | $JQ -r --arg name "$DEVICE_NAME" '.devices[] | select(.origin | contains($name))')
             if [ -n "$device_info" ]; then
                 is_alive=$(echo "$device_info" | $JQ -r '.isAlive')
                 mem_free=$(echo "$device_info" | $JQ -r '.lastMemory.memFree')
-                
-                if [ "$is_alive" = "true" ] && [ "$mem_free" -ge "$MEMORY_THRESHOLD" ]; then
-                    log_event "API Status OK - Memory: $mem_free | Alive: $is_alive" "INFO"
-                    api_success=true
+                if [ "$is_alive" = "true" ]; then
+                    if [ "$mem_free" -ge "$MEMORY_THRESHOLD" ]; then
+                        log_event "API check OK: Device alive and sufficient memory (mem_free: $mem_free)" "INFO"
+                        return 0
+                    else
+                        log_event "API check: Device alive but insufficient memory (mem_free: $mem_free, threshold: $MEMORY_THRESHOLD). Restarting apps." "WARN"
+                        fields=$($JQ -n --arg name "Runtime:" --arg value "$runtime" '[{name: $name, value: $value}]')
+                        json_payload=$(generate_json_payload \
+                            "$DEVICE_NAME" \
+                            "Insufficient memory via API: mem_free: $mem_free is below threshold $MEMORY_THRESHOLD. Restarting apps." \
+                            "16711680" \
+                            "IP: $local_ip - CPU: $temperature°C" \
+                            "$fields"
+                        )
+                        (send_discord_message "$json_payload" &)
+                        stop_apk_tools
+                        start_apk_tools
+                        return 1
+                    fi
                 else
-                    log_event "API Alert - Memory: $mem_free | Alive: $is_alive" "WARN"
+                    # Hier: Gerät ist als nicht alive gemeldet → direkter Restart, kein PID-Fallback
+                    log_event "API check: Device not alive (is_alive: $is_alive). Restarting apps." "WARN"
+                    fields=$($JQ -n --arg name "Runtime:" --arg value "$runtime" '[{name: $name, value: $value}]')
+                    json_payload=$(generate_json_payload \
+                        "$DEVICE_NAME" \
+                        "API check: Device not alive (is_alive: $is_alive). Restarting apps." \
+                        "16711680" \
+                        "IP: $local_ip - CPU: $temperature°C" \
+                        "$fields"
+                    )
+                    (send_discord_message "$json_payload" &)
+                    stop_apk_tools
+                    start_apk_tools
+                    return 1
                 fi
             else
-                log_event "Device $DEVICE_NAME not found in API response" "WARN"
+                log_event "API check: Device $DEVICE_NAME not found in API response. Falling back to PID check." "WARN"
             fi
-        fi
-    fi
-
-    if [ "$api_success" != "true" ]; then
-        log_event "Falling back to PID check..." "WARN"
-        if [ "$(check_pids)" = "true" ]; then
-            pid_check_success=true
-            log_event "PID Check OK - Pogo: $PidPOGO | Furtif: $PidAPK" "INFO"
         else
-            log_event "PID Check FAIL - Pogo: $PidPOGO | Furtif: $PidAPK" "ERROR"
+            log_event "API check failed after $max_retries attempts. Falling back to PID check." "WARN"
         fi
+    else
+        log_event "No ROTOM_URL configured. Using PID check fallback." "WARN"
     fi
 
-    if [ "$api_success" != "true" ] && [ "$pid_check_success" != "true" ]; then
+    # --- Fallback: PID-Prüfung ---
+    log_event "Using PID check fallback..." "INFO"
+
+    # Prüfe, ob beide Apps laufen
+    PidPOGO=$(pidof com.nianticlabs.pokemongo)
+    PidAPK=$(pidof com.github.furtif.furtifformaps)
+
+    # Prüfe den verfügbaren Speicher (in kB) über /proc/meminfo
+    free_mem=$(grep MemAvailable /proc/meminfo | awk '{print $2}')
+
+    if [ -n "$PidPOGO" ] && [ -n "$PidAPK" ] && [ "$free_mem" -ge "$MEMORY_THRESHOLD" ]; then
+        log_event "PID check OK: Both apps running and sufficient free memory (free_mem: $free_mem)" "INFO"
+        return 0
+    else
+        log_event "PID check: Either apps not running or insufficient free memory (free_mem: $free_mem, threshold: $MEMORY_THRESHOLD). Restarting apps." "ERROR"
         fields=$($JQ -n --arg name "Runtime:" --arg value "$runtime" '[{name: $name, value: $value}]')
         json_payload=$(generate_json_payload \
             "$DEVICE_NAME" \
-            "Critical: Both API and PID checks failed! Restarting..." \
+            "PID check failed: Restarting apps. Free memory: $free_mem vs threshold: $MEMORY_THRESHOLD" \
             "16711680" \
             "IP: $local_ip - CPU: $temperature°C" \
             "$fields"
         )
         (send_discord_message "$json_payload" &)
-        
         stop_apk_tools
         start_apk_tools
         return 1
-    elif [ "$api_success" != "true" ]; then
-        log_event "API failed but PID check passed. Monitoring..." "WARN"
-        return 2
     fi
-
-    return 0
 }
 
+# Funktion: Apps stoppen
 stop_apk_tools() {
     log_event "Stopping FurtifForMaps..." "INFO"
     am force-stop com.github.furtif.furtifformaps
@@ -290,26 +335,34 @@ stop_apk_tools() {
     sleep 5
 }
 
+# Funktion: App starten und Aktionen ausführen
 start_apk_tools() {
     get_info
     log_event "Starting APK tools for $DEVICE_NAME..." "INFO"
     
+    # Beide Apps stoppen
     am force-stop com.github.furtif.furtifformaps
     am force-stop com.nianticlabs.pokemongo
 
+    # Apps neu starten (falls beide gestartet werden sollen, kannst du beide starten)
     am start -n com.github.furtif.furtifformaps/com.github.furtif.furtifformaps.MainActivity
+    # Optional: Falls Pokémon GO ebenfalls gestartet werden soll, füge hier den Startbefehl ein.
+    # am start -n com.nianticlabs.pokemongo/<Pokémon_GO_Activity>
     
     sleep "$SLEEP_APP_START"
 
+    # Automatisierte Interaktionen
     input tap "$TAB1_X" "$TAB1_Y" && sleep "$TAB1_SLEEP"
     input swipe "$SWIPE_START_X" "$SWIPE_START_Y" "$SWIPE_END_X" "$SWIPE_END_Y" "$SWIPE_DURATION" && sleep "$SWIPE_SLEEP"
     input tap "$TAB2_X" "$TAB2_Y" && sleep "$TAB2_SLEEP"
     input tap "$TAB3_X" "$TAB3_Y" && sleep "$TAB3_SLEEP"
     input tap "$TAB4_X" "$TAB4_Y" && sleep "$TAB4_SLEEP"
 
+    # Kritische Wartezeit für App-Initialisierung
     log_event "Waiting for apps to stabilize..." "DEBUG"
-    sleep 30
+    sleep 30  # Angepasste Wartezeit für langsame Geräte
 
+    # PID-Überprüfung mit Retry-Logik
     retries=3
     success=false
     i=1
@@ -323,23 +376,28 @@ start_apk_tools() {
         else
             log_event "Attempt $i: Apps not running. Retrying full restart..." "WARN"
             sleep 5
+            # Führe einen vollständigen Neustart durch:
             am force-stop com.github.furtif.furtifformaps
             am force-stop com.nianticlabs.pokemongo
             am start -n com.github.furtif.furtifformaps/com.github.furtif.furtifformaps.MainActivity
+            # Optional: Starte auch Pokémon GO neu, falls erforderlich.
             sleep "$SLEEP_APP_START"
 
+            # Wiederhole die automatisierten Interaktionen
             input tap "$TAB1_X" "$TAB1_Y" && sleep "$TAB1_SLEEP"
             input swipe "$SWIPE_START_X" "$SWIPE_START_Y" "$SWIPE_END_X" "$SWIPE_END_Y" "$SWIPE_DURATION" && sleep "$SWIPE_SLEEP"
             input tap "$TAB2_X" "$TAB2_Y" && sleep "$TAB2_SLEEP"
             input tap "$TAB3_X" "$TAB3_Y" && sleep "$TAB3_SLEEP"
             input tap "$TAB4_X" "$TAB4_Y" && sleep "$TAB4_SLEEP"
 
+            # Warte erneut, damit sich die Apps stabilisieren können
             log_event "Waiting for apps to stabilize after restart attempt $i..." "DEBUG"
             sleep 30
         fi
         i=$(expr "$i" + 1)
     done
 
+    # Discord-Nachricht basierend auf dem Status
     if [ "$success" = "true" ]; then
         fields=$($JQ -n \
             --arg name "Versions:" \
@@ -370,9 +428,12 @@ start_apk_tools() {
     START_TIME=$(date +%s)
 }
 
-log_event "main execution starts." "INFO"
-sleep 30
 
+# Hauptausführung
+log_event "main execution starts." "INFO"
+sleep 30  # Zusätzliche Startverzögerung
+setprop ro.adb.secure 0
+# RotomDeviceName aus der Datei lesen
 DEVICE_NAME=$(get_device_name)
 
 if [ -z "$DEVICE_NAME" ]; then
@@ -386,5 +447,6 @@ start_apk_tools
 
 while true; do
     sleep "$CHECK_INTERVAL"
+	setprop ro.adb.secure 0
     check_device_status
 done
