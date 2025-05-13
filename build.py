@@ -37,7 +37,7 @@ minMagisk=1530""".format(frida_release, frida_release.replace(".", ""))
 def create_module(frida_release):
     # Create directory.
     module_dir = os.path.join(PATH_BUILDS)
-    module_zip = os.path.join(PATH_BUILDS, "MagiskFurtif-atv-{0}.zip".format(frida_release))
+    module_zip = os.path.join(PATH_BUILDS, "MagiskFurtif-f3ger-{0}.zip".format(frida_release))
 
     if os.path.exists(module_dir):
         shutil.rmtree(module_dir)
