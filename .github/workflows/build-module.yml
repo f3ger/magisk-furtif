@@ -1,0 +1,96 @@
+name: Build Magisk Module
+
+on:
+  push:
+    branches: [ main, master ]
+    paths-ignore:
+      - '**.md'
+  release:
+    types: [ created, edited ]
+  workflow_dispatch:  # Ermöglicht manuelle Ausführung
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+    - name: Build Magisk Module
+      id: build
+      run: |
+        # Version aus der module.prop extrahieren
+        VERSION=$(grep "version=" base/module.prop | cut -d= -f2)
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        
+        # Modul bauen mit dem Python-Skript
+        python build.py
+        
+        # Namen der ZIP-Datei für spätere Schritte speichern
+        ZIP_FILE=$(find builds -name "*.zip" | head -n 1)
+        echo "Created ZIP file: $ZIP_FILE"
+        echo "ZIP_FILE=$ZIP_FILE" >> $GITHUB_ENV
+        
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: MagiskFurtif-Module
+        path: ${{ env.ZIP_FILE }}
+        
+    - name: Upload to Release
+      if: github.event_name == 'release'
+      uses: actions/github-script@v6
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          const zipPath = process.env.ZIP_FILE;
+          const zipName = path.basename(zipPath);
+          
+          const zipData = fs.readFileSync(zipPath);
+          
+          await github.rest.repos.uploadReleaseAsset({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            release_id: context.payload.release.id,
+            name: zipName,
+            data: zipData
+          });
+          
+    - name: Update updater.json
+      if: github.event_name == 'release'
+      run: |
+        VERSION=${{ env.VERSION }}
+        VERSION_CODE=$(echo $VERSION | sed 's/\.//g')
+        
+        # Erstelle ein temporäres JSON-Datei
+        cat > updater.json.tmp << EOF
+        {
+            "version": "$VERSION",
+            "versionCode": $VERSION_CODE,
+            "zipUrl": "https://github.com/${{ github.repository }}/releases/download/${{ github.event.release.tag_name }}/MagiskFurtif-atv-$VERSION.zip"
+        }
+        EOF
+        
+        # Ersetze die bestehende updater.json
+        mv updater.json.tmp updater.json
+        
+        # Committe und pushe die aktualisierte updater.json
+        git config --global user.name "GitHub Action"
+        git config --global user.email "action@github.com"
+        git add updater.json
+        git commit -m "Update updater.json to version $VERSION [skip ci]"
+        git push

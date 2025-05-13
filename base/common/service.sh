@@ -80,6 +80,53 @@ get_json_value() {
     $JQ -r "$key" "$CONFIG_FILE"
 }
 
+# Function to get the screen size
+get_screen_size() {
+    # Get screen size
+    local size_output=$(wm size)
+    
+    # Initialize with default values
+    local width=1080
+    local height=1920
+    
+    # Try to parse override size
+    local override_size=$(echo "$size_output" | grep "Override size:" | sed -E 's/.*Override size: ([0-9]+)x([0-9]+).*/\1 \2/')
+    if [ -n "$override_size" ]; then
+        width=$(echo "$override_size" | awk '{print $1}')
+        height=$(echo "$override_size" | awk '{print $2}')
+    else
+        # Try to parse physical size
+        local physical_size=$(echo "$size_output" | grep "Physical size:" | sed -E 's/.*Physical size: ([0-9]+)x([0-9]+).*/\1 \2/')
+        if [ -n "$physical_size" ]; then
+            width=$(echo "$physical_size" | awk '{print $1}')
+            height=$(echo "$physical_size" | awk '{print $2}')
+        fi
+    fi
+    
+    # Return the size
+    echo "$width $height"
+}
+
+# Function to perform a dynamic swipe based on screen dimensions
+perform_dynamic_swipe() {
+    # Get screen dimensions
+    local screen_size=$(get_screen_size)
+    local width=$(echo "$screen_size" | awk '{print $1}')
+    local height=$(echo "$screen_size" | awk '{print $2}')
+    
+    # Calculate swipe coordinates (integer arithmetic)
+    local start_x=$((width / 2))
+    local start_y=$((height * 3 / 4))
+    local end_x=$((width / 2))
+    local end_y=$((height / 20))
+    
+    log_event "Performing dynamic swipe: $start_x,$start_y to $end_x,$end_y (screen: ${width}x${height})" "INFO"
+    
+    # Execute swipe
+    input swipe "$start_x" "$start_y" "$end_x" "$end_y" "$SWIPE_DURATION"
+    sleep "$SWIPE_SLEEP"
+}
+
 if [ ! -f "$CONFIG_FILE" ]; then
     log_event "Config file not found at $CONFIG_FILE" "ERROR"
     exit 1
@@ -115,6 +162,9 @@ SWIPE_END_X=$(get_json_value ".SWIPE_COORDINATES.end_x")
 SWIPE_END_Y=$(get_json_value ".SWIPE_COORDINATES.end_y")
 SWIPE_DURATION=$(get_json_value ".SWIPE_COORDINATES.duration")
 SWIPE_SLEEP=$(get_json_value ".SWIPE_COORDINATES.sleep")
+
+# Get whether to use dynamic swipe (default to true if not specified)
+USE_DYNAMIC_SWIPE=$(get_json_value ".USE_DYNAMIC_SWIPE" 2>/dev/null || echo "true")
 
 if [ -z "$DISCORD_WEBHOOK_URL" ] || [ -z "$ROTOM_URL" ]; then
     log_event "Missing critical configuration values. Check your JSON file." "ERROR"
@@ -315,7 +365,14 @@ start_apk_tools() {
     sleep "$SLEEP_APP_START"
 
     input tap "$TAB1_X" "$TAB1_Y" && sleep "$TAB1_SLEEP"
-    input swipe "$SWIPE_START_X" "$SWIPE_START_Y" "$SWIPE_END_X" "$SWIPE_END_Y" "$SWIPE_DURATION" && sleep "$SWIPE_SLEEP"
+    
+    # Use dynamic swipe if enabled, otherwise use fixed coordinates
+    if [ "$USE_DYNAMIC_SWIPE" = "true" ]; then
+        perform_dynamic_swipe
+    else
+        input swipe "$SWIPE_START_X" "$SWIPE_START_Y" "$SWIPE_END_X" "$SWIPE_END_Y" "$SWIPE_DURATION" && sleep "$SWIPE_SLEEP"
+    fi
+    
     input tap "$TAB2_X" "$TAB2_Y" && sleep "$TAB2_SLEEP"
     input tap "$TAB3_X" "$TAB3_Y" && sleep "$TAB3_SLEEP"
     input tap "$TAB4_X" "$TAB4_Y" && sleep "$TAB4_SLEEP"
@@ -342,7 +399,14 @@ start_apk_tools() {
             sleep "$SLEEP_APP_START"
 
             input tap "$TAB1_X" "$TAB1_Y" && sleep "$TAB1_SLEEP"
-            input swipe "$SWIPE_START_X" "$SWIPE_START_Y" "$SWIPE_END_X" "$SWIPE_END_Y" "$SWIPE_DURATION" && sleep "$SWIPE_SLEEP"
+            
+            # Use dynamic swipe in retry attempt as well
+            if [ "$USE_DYNAMIC_SWIPE" = "true" ]; then
+                perform_dynamic_swipe
+            else
+                input swipe "$SWIPE_START_X" "$SWIPE_START_Y" "$SWIPE_END_X" "$SWIPE_END_Y" "$SWIPE_DURATION" && sleep "$SWIPE_SLEEP"
+            fi
+            
             input tap "$TAB2_X" "$TAB2_Y" && sleep "$TAB2_SLEEP"
             input tap "$TAB3_X" "$TAB3_Y" && sleep "$TAB3_SLEEP"
             input tap "$TAB4_X" "$TAB4_Y" && sleep "$TAB4_SLEEP"
