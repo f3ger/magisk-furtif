@@ -24,11 +24,10 @@ def create_module_prop(path, frida_release):
     module_prop = """id=magiskfurtif
 name=MagiskFurtif
 version=v{0}
-versionCode={2}
-author=Furtif
+versionCode={1}
+author=Furtif and f3ger
 description=Runs Apk-Tools on boot with magisk.
-support=https://github.com/Furtif/magisk-furtif/issues
-updateJson=https://raw.githubusercontent.com/Furtif/magisk-furtif/refs/heads/atv/updater.json
+updateJson=https://raw.githubusercontent.com/f3ger/magisk-furtif/refs/heads/main/updater.json
 minMagisk=1530""".format(frida_release, frida_release.replace(".", ""))
 
     with open(os.path.join(path, "module.prop"), "w", newline='\n') as f:
@@ -79,6 +78,13 @@ def main():
     # Create necessary folders.
     if not os.path.exists(PATH_BUILDS):
         os.makedirs(PATH_BUILDS)
+    
+    # Create base directory if it doesn't exist
+    if not os.path.exists(PATH_BASE_MODULE):
+        os.makedirs(PATH_BASE_MODULE)
+        os.makedirs(os.path.join(PATH_BASE_MODULE, "common"))
+        os.makedirs(os.path.join(PATH_BASE_MODULE, "system"))
+        os.makedirs(os.path.join(PATH_BASE_MODULE, "META-INF"))
 
     # Fetch frida information.
     frida_release = "2.0"
