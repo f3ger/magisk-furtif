@@ -7,7 +7,7 @@ on:
       - '**.md'
   release:
     types: [ created, edited ]
-  workflow_dispatch:  # Ermöglicht manuelle Ausführung
+  workflow_dispatch:
 
 jobs:
   build:
@@ -16,6 +16,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Vollständiges Repository abrufen
       
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -87,18 +89,18 @@ jobs:
         
     - name: Upload to Release
       if: github.event_name == 'release'
-      uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ github.event.release.upload_url }}
-        asset_path: ${{ env.ZIP_FILE }}
-        asset_name: MagiskFurtif-atv-${{ env.VERSION }}.zip
-        asset_content_type: application/zip
+      run: |
+        # Upload asset using GitHub CLI
+        gh release upload ${{ github.event.release.tag_name }} "${{ env.ZIP_FILE }}" --clobber
           
     - name: Update updater.json
       if: github.event_name == 'release'
       run: |
+        # Checkout the main branch explicitly
+        git checkout main
+        
         VERSION="${{ env.VERSION }}"
         VERSION_CODE=$(echo $VERSION | sed 's/\.//g')
         
@@ -119,4 +121,4 @@ jobs:
         git config --global user.email "action@github.com"
         git add updater.json
         git commit -m "Update updater.json to version $VERSION [skip ci]"
-        git push
+        git push origin main
