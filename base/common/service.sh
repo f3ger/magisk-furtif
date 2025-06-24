@@ -271,7 +271,7 @@ check_device_status() {
         done
 
         if [ -n "$api_response" ]; then
-            device_info=$(echo "$api_response" | $JQ -r --arg name "$DEVICE_NAME" '.devices[] | select(.origin | contains($name))')
+            device_info=$(echo "$api_response" | $JQ -r --arg name "$DEVICE_NAME" '.devices[] | select(.origin == $name)')
             if [ -n "$device_info" ]; then
                 is_alive=$(echo "$device_info" | $JQ -r '.isAlive')
                 mem_free=$(echo "$device_info" | $JQ -r '.lastMemory.memFree')
